@@ -18,6 +18,15 @@
 #include "../dmtcp/src/mtcp/mtcp_sys.h"
 #endif
 
+// FIXME:  Remove PluginInfo mtcp_restart_plugin.h in this directory.
+//         Remove all lines with PluginInfo from dmtcp/src/mtcp/mtcp_restart.h
+//         Create a new PR/commit for DMTCP based on the last.
+//         Push the PR into DMTCP master.
+//         In the DMTCP submodule, git pull --rebase origin master
+//         git submodule update
+//         Remove this FIXME comment.
+//         Create a new MANA PR from this.
+
 #define HAS_MAP_FIXED_NOREPLACE LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) 
 
 // Using both methods to skip unmapping lower-half mmap'ed regions
@@ -493,10 +502,6 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   // This creates the lower half and copies the bits, and sets lh_info_addr
   //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
-  // Now copy it to rinfo->pluginInfo.   Eventually, we want to use
-  //   only lh_info_addr, and remove pluginInfo from
-  //   mtcp_restart_plugin.h and ../dmtcp/src/mtcp/mtcp_restart.h
-  mtcp_memcpy(&rinfo->pluginInfo, lh_info_addr, sizeof(*lh_info_addr));
 
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
@@ -567,14 +572,14 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
 
     // Verify that the lower half and the restored upper half don't conflict
     if (is_overlap(start1, end1,
-                   rinfo->pluginInfo.memRange.start,
-                   rinfo->pluginInfo.memRange.end)) {
+                   lh_info_addr->memRange.start,
+                   lh_info_addr->memRange.end)) {
       MTCP_PRINTF("uh libs and lower half memRange overlap\n");
       mtcp_abort();
     }
     if (is_overlap(start2, end2,
-                   rinfo->pluginInfo.memRange.start,
-                   rinfo->pluginInfo.memRange.end)) {
+                   lh_info_addr->memRange.start,
+                   lh_info_addr->memRange.end)) {
       MTCP_PRINTF("uh stack and lower half memRange overlap\n");
       mtcp_abort();
     }
@@ -598,7 +603,7 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     //         mtcp_restart is statically linked, and doesn't need it.
     Area heap_area;
     MTCP_ASSERT(getMappedArea(&heap_area, "[heap]") == 1);
-    start1 = MAX(heap_area.endAddr, (VA)rinfo->pluginInfo.memRange.end);
+    start1 = MAX(heap_area.endAddr, (VA)lh_info_addr->memRange.end);
     Area stack_area;
     MTCP_ASSERT(getMappedArea(&stack_area, "[stack]") == 1);
     end1 = MIN(stack_area.endAddr - 4 * GB, rinfo->minHighMemStart - 4 * GB);
@@ -637,14 +642,14 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     print(&CartesianProperties);
 # endif
     typedef int (*getCoordinatesFptr_t)(CartesianProperties *, int *, int);
-    JUMP_TO_LOWER_HALF(rinfo->pluginInfo.fsaddr);
+    JUMP_TO_LOWER_HALF(lh_info_addr->fsaddr);
     // MPI_Init is called here. Network memory areas will be loaded by MPI_Init.
     // Also, MPI_Cart_create will be called to restore cartesian topology.
     // Based on the coordinates, checkpoint image will be restored instead of
     // world rank.
     world_rank =
       ((getCoordinatesFptr_t)
-      rinfo->pluginInfo.getCoordinatesFptr)(&cp, coords, m_header.init_flag);
+      lh_info_addr->getCoordinatesFptr)(&cp, coords, m_header.init_flag);
     RETURN_TO_UPPER_HALF();
 # if 0
     MTCP_PRINTF("\nWorld Rank: %d \n: ", world_rank);
@@ -657,10 +662,10 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     get_rank_corresponding_to_coordinates(cp.comm_old_size, cp.ndims, coords, m_header.init_flag);
   } else {
     typedef int (*getRankFptr_t)(void);
-    JUMP_TO_LOWER_HALF(rinfo->pluginInfo.fsaddr);
+    JUMP_TO_LOWER_HALF(lh_info_addr->fsaddr);
     // MPI_Init is called here. Network memory areas will be loaded by MPI_Init.
     world_rank =
-      ((getRankFptr_t)rinfo->pluginInfo.getRankFptr)(m_header.init_flag);
+      ((getRankFptr_t)lh_info_addr->getRankFptr)(m_header.init_flag);
     RETURN_TO_UPPER_HALF();
     ckpt_image_rank_to_be_restored = world_rank;
   }
@@ -700,10 +705,6 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   // This creates the lower half and copies the bits, and sets lh_info_addr
   //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
-  // Now copy it to rinfo->pluginInfo.   Eventually, we want to use
-  //   only lh_info_addr, and remove pluginInfo from
-  //   mtcp_restart_plugin.h and ../dmtcp/src/mtcp/mtcp_restart.h
-  mtcp_memcpy(&rinfo->pluginInfo, lh_info_addr, sizeof(*lh_info_addr));
 
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
@@ -774,14 +775,14 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
 
     // Verify that the lower half and the restored upper half don't conflict
     if (is_overlap(start1, end1,
-                   rinfo->pluginInfo.memRange.start,
-                   rinfo->pluginInfo.memRange.end)) {
+                   lh_info_addr->memRange.start,
+                   lh_info_addr->memRange.end)) {
       MTCP_PRINTF("uh libs and lower half memRange overlap\n");
       mtcp_abort();
     }
     if (is_overlap(start2, end2,
-                   rinfo->pluginInfo.memRange.start,
-                   rinfo->pluginInfo.memRange.end)) {
+                   lh_info_addr->memRange.start,
+                   lh_info_addr->memRange.end)) {
       MTCP_PRINTF("uh stack and lower half memRange overlap\n");
       mtcp_abort();
     }
@@ -805,7 +806,7 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     //         mtcp_restart is statically linked, and doesn't need it.
     Area heap_area;
     MTCP_ASSERT(getMappedArea(&heap_area, "[heap]") == 1);
-    start1 = MAX(heap_area.endAddr, (VA)rinfo->pluginInfo.memRange.end);
+    start1 = MAX(heap_area.endAddr, (VA)lh_info_addr->memRange.end);
     Area stack_area;
     MTCP_ASSERT(getMappedArea(&stack_area, "[stack]") == 1);
     end1 = MIN(stack_area.endAddr - 4 * GB, rinfo->minHighMemStart - 4 * GB);
@@ -830,10 +831,10 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   typedef int (*getRankFptr_t)(int);
   int rank = -1;
   reserveUpperHalfMemoryRegionsForCkptImgs(start1, end1, start2, end2);
-  JUMP_TO_LOWER_HALF(rinfo->pluginInfo.fsaddr);
+  JUMP_TO_LOWER_HALF(lh_info_addr->fsaddr);
 
   // MPI_Init is called here. Networrk memory areas will be loaded by MPI_Init.
-  rank = ((getRankFptr_t)rinfo->pluginInfo.getRankFptr)(m_header.init_flag);
+  rank = ((getRankFptr_t)lh_info_addr->getRankFptr)(m_header.init_flag);
   RETURN_TO_UPPER_HALF();
   releaseUpperHalfMemoryRegionsForCkptImgs(start1, end1, start2, end2);
   unreserve_fds_upper_half(reserved_fds,total_reserved_fds);
@@ -857,8 +858,8 @@ mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
   LhCoreRegions_t *lh_regions_list = NULL;
   int total_lh_regions = lh_info_addr->numCoreRegions;
 
-  if (regionContains(rinfo->pluginInfo.memRange.start,
-                     rinfo->pluginInfo.memRange.end,
+  if (regionContains(lh_info_addr->memRange.start,
+                     lh_info_addr->memRange.end,
                      area->addr, area->endAddr)) {
     return 1;
   }
@@ -890,7 +891,7 @@ mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
   if (fnc) {
     // This is the mmaps[] array, but only for those regions that are mapped.
     // Now that the __mmap64 wrapper occupies the entire
-    //   rinfo->pluginInfo.memRange, we should skip unmapping the
+    //   lh_info_addr->memRange, we should skip unmapping the
     //   entire memRange, and not just the regions of mmaps[].
     g_list = fnc(&g_numMmaps);
   }
