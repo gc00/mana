@@ -12,20 +12,14 @@
 #include "mtcp_sys.h"
 #include "mtcp_util.h"
 #include "../mpi-proxy-split/mana_header.h"
+#include "mtcp_restart_plugin.h"
 #include "mtcp_split_process.h"
 #ifdef SINGLE_CART_REORDER
 #include "../mpi-proxy-split/cartesian.h"
 #include "../dmtcp/src/mtcp/mtcp_sys.h"
 #endif
 
-// FIXME:  Remove PluginInfo mtcp_restart_plugin.h in this directory.
-//         Remove all lines with PluginInfo from dmtcp/src/mtcp/mtcp_restart.h
-//         Create a new PR/commit for DMTCP based on the last.
-//         Push the PR into DMTCP master.
-//         In the DMTCP submodule, git pull --rebase origin master
-//         git submodule update
-//         Remove this FIXME comment.
-//         Create a new MANA PR from this.
+#include "config.h" // from dmtcp/include; used to compile mtcp_restart
 
 #define HAS_MAP_FIXED_NOREPLACE LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) 
 
