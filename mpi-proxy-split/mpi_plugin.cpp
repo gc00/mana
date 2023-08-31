@@ -132,6 +132,37 @@ void recordPreMpiInitMaps()
   }
   mpiInitLhAreas = new map<void*, size_t>();
   preMpiInitMaps = new ProcSelfMaps();
+
+  /* FIXME:  Probably libc_csu_init creates a heap through an internal
+   *         call to sbrk.  It's too late to catch this in the child
+   *         lh_proxy process, since the heap is being created after
+   *         copy-the-bits, while the parent process has a different
+   *         sbrk, since it is an MPI application started during mana_launch.
+   *         And during mana_restart, The child lh_proxy was created
+   *         in restart_plugin and initialized in its own initializeLowerHalf()
+   *         function, defined separately from the version used during
+   *         mana_launch in:  mpi-proxy-split/split_process.cpp.
+   *         The mana_restart case doesn't go through here.
+   */
+  ProcMapsArea area;
+  const void *procSelfMapsData = preMpiInitMaps->getData();
+  VA last_core_region_addr = NULL;
+  while (preMpiInitMaps->getNextArea(&area)) {
+    if (isLhCoreRegion(&area)) {
+      last_core_region_addr = area.endAddr;
+    }
+    if (area.addr == last_core_region_addr) {
+      // This memory region is called from:
+      //    split_process.cpp:initializeLowerHalf():
+      //      lh_info.libc_start_main( (mainFptr)lh_info.main, ...,
+      //                          (mainFptr)lh_info.libc_csu_init, ..)
+      int idx = lh_info.numCoreRegions;
+      lh_regions_list[idx].start_addr = area.addr;
+      lh_regions_list[idx].end_addr = area.endAddr;
+      lh_regions_list[idx].prot = area.prot;
+      lh_info.numCoreRegions++;
+    }
+  }
 }
 
 void recordPostMpiInitMaps()
@@ -353,7 +384,7 @@ isLhCoreRegion(const ProcMapsArea *area)
     void *lhStartAddr = lh_regions_list[i].start_addr;
     if (area->addr == lhStartAddr) {
       JTRACE ("Ignoring LH core region") ((void*)area->addr);
-      return 1;
+      return true;
     }
   }
   return false;
@@ -682,6 +713,8 @@ updateLhEnviron()
 static void
 computeUnionOfCkptImageAddresses()
 {
+int dummy=1;
+while(dummy);
   ProcSelfMaps procSelfMaps; // This will be deleted when out of scope.
   Area area;
 
