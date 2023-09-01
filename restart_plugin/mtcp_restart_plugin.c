@@ -18,14 +18,20 @@
 #include "../dmtcp/src/mtcp/mtcp_sys.h"
 #endif
 
-// FIXME:  Remove PluginInfo mtcp_restart_plugin.h in this directory.
+// FIXME:  Remove PluginInfo from mtcp_restart_plugin.h in this directory.
 //         Remove all lines with PluginInfo from dmtcp/src/mtcp/mtcp_restart.h
 //         Create a new PR/commit for DMTCP based on the last.
+//           In mtcp_restart.h:struct RestoreInfo, change the pluginInfo field
+//           to be of type char[512]. The restart_plugin directory can
+//           cast it to a local 'struct PluginInfo' that starts with
+//           a size field, and then an lh_info_addr field, and then the
+//           upper-half fields minLibsStart, maxLibsEnd, minHighMemStart, etc.
+//           See the FIXME comment in mtcp_restart_plugin.h.
 //         Push the PR into DMTCP master.
 //         In the DMTCP submodule, git pull --rebase origin master
 //         git submodule update
 //         Remove this FIXME comment.
-//         Create a new MANA PR from this.
+//         Create a new MANA PR from this, and the 'struct PluginInfo' field..
 
 #define HAS_MAP_FIXED_NOREPLACE LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) 
 
@@ -503,6 +509,23 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
 
+  // We need to copy lh_info_addr to a safe place inside rinfo,
+  // since mtcp_plugin_skip_memory_region_munmap() is called from
+  // mtcp:restorememoryareas(), when we are munmap'ing the old mtcp_restart
+  // data segment.  The rinfo struct will be copied onto the stack
+  // when calling mtcp:restorememoryareas().
+  rinfo->pluginInfo.lh_info_addr = lh_info_addr;
+
+  // FIXME:  Eventually, mpi-proxy-split/mpi_plugin.cpp should
+  //         directly write to rinfo->pluginInfo, and we won't
+  //         need to do this extra copy, here.
+  // Copy the upper-half info to rinfo->pluginInfo
+  rinfo->pluginInfo.minLibsStart = rinfo->minLibsStart;
+  rinfo->pluginInfo.maxLibsEnd = rinfo->maxLibsEnd;
+  rinfo->pluginInfo.minHighMemStart = rinfo->minHighMemStart;
+  rinfo->pluginInfo.maxHighMemEnd = rinfo->maxHighMemEnd;
+  rinfo->pluginInfo.restartDir = rinfo->restartDir;
+
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
   int total_reserved_fds;
@@ -570,7 +593,7 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
       end1 = stack_area.addr;
     }
 
-    // Verify that the lower half and the restored upper half don't conflict
+    // Verify that the lower half and the restored upper half don't conflict.
     if (is_overlap(start1, end1,
                    lh_info_addr->memRange.start,
                    lh_info_addr->memRange.end)) {
@@ -705,6 +728,23 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   // This creates the lower half and copies the bits, and sets lh_info_addr
   //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
+
+  // We need to copy lh_info_addr to a safe place inside rinfo,
+  // since mtcp_plugin_skip_memory_region_munmap() is called from
+  // mtcp:restorememoryareas(), when we are munmap'ing the old mtcp_restart
+  // data segment.  The rinfo struct will be copied onto the stack
+  // when calling mtcp:restorememoryareas().
+  rinfo->pluginInfo.lh_info_addr = lh_info_addr;
+
+  // FIXME:  Eventually, mpi-proxy-split/mpi_plugin.cpp should
+  //         directly write to rinfo->pluginInfo, and we won't
+  //         need to do this extra copy, here.
+  // Copy the upper-half info to rinfo->pluginInfo
+  rinfo->pluginInfo.minLibsStart = rinfo->minLibsStart;
+  rinfo->pluginInfo.maxLibsEnd = rinfo->maxLibsEnd;
+  rinfo->pluginInfo.minHighMemStart = rinfo->minHighMemStart;
+  rinfo->pluginInfo.maxHighMemEnd = rinfo->maxHighMemEnd;
+  rinfo->pluginInfo.restartDir = rinfo->restartDir;
 
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
@@ -855,6 +895,9 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
 int
 mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
 {
+  // lh_proxy lower half is not being unmapped.  lh_info_addr points there.
+  LowerHalfInfo_t *lh_info_addr = rinfo->pluginInfo.lh_info_addr;
+
   LhCoreRegions_t *lh_regions_list = NULL;
   int total_lh_regions = lh_info_addr->numCoreRegions;
 
