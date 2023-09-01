@@ -490,12 +490,13 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   // The other assumption here is that we can only handle uncompressed
   // checkpoint images.
 
-  // This creates the lower half and copies the bits to populate lh_info:
+  // This creates the lower half and copies the bits, and sets lh_info_addr
+  //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
   // Now copy it to rinfo->pluginInfo.   Eventually, we want to use
-  //   only lh_info, and remove pluginInfo from
+  //   only lh_info_addr, and remove pluginInfo from
   //   mtcp_restart_plugin.h and ../dmtcp/src/mtcp/mtcp_restart.h
-  mtcp_memcpy(&rinfo->pluginInfo, &lh_info, sizeof(lh_info));
+  mtcp_memcpy(&rinfo->pluginInfo, lh_info_addr, sizeof(*lh_info_addr));
 
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
@@ -513,7 +514,7 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   {
     // minLibsStart was chosen with extra space below, for future libs, mmap.
     start1 = rinfo->minLibsStart;    // first lib of upper half
-    // Either lh_info.memRange is a region between 1 GB and 2 GB below
+    // Either lh_info_addr->memRange is a region between 1 GB and 2 GB below
     //   the end of stack in the lower half; or else it is at an unusual
     //   address for which we hope there is no address conflict.
     //   The latter holds if USE_LH_FIXED_ADDRESS was defined in
@@ -590,8 +591,8 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     //         But lower-half MPI_Init may call additional mmap's not
     //           controlled by us.
     //         Check this logic.
-    // NOTE:   setLhMemRange (lh_info.memRange: future mmap's of lower half)
-    //           was chosen to be in safe memory region
+    // NOTE:   setLhMemRange (lh_info_addr->memRange: future mmap's of
+    //           lower half was chosen to be in safe memory region
     // NOTE:   When we mmap start1..end1, we will overwrite the text and
     //         data segments of ld.so belonging to mtcp_restart.  But
     //         mtcp_restart is statically linked, and doesn't need it.
@@ -696,12 +697,13 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   // The other assumption here is that we can only handle uncompressed
   // checkpoint images.
 
-  // This creates the lower half and copies the bits to populate lh_info:
+  // This creates the lower half and copies the bits, and sets lh_info_addr
+  //   to point into the lh_info struct of the lower half:
   splitProcess(rinfo);
   // Now copy it to rinfo->pluginInfo.   Eventually, we want to use
-  //   only lh_info, and remove pluginInfo from
+  //   only lh_info_addr, and remove pluginInfo from
   //   mtcp_restart_plugin.h and ../dmtcp/src/mtcp/mtcp_restart.h
-  mtcp_memcpy(&rinfo->pluginInfo, &lh_info, sizeof(lh_info));
+  mtcp_memcpy(&rinfo->pluginInfo, lh_info_addr, sizeof(*lh_info_addr));
 
   // Reserve first 500 file descriptors for the Upper-half
   int reserved_fds[500];
@@ -719,7 +721,7 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
   {
     // minLibsStart was chosen with extra space below, for future libs, mmap.
     start1 = rinfo->minLibsStart;    // first lib of upper half
-    // Either lh_info.memRange is a region between 1 GB and 2 GB below
+    // Either lh_info_addr->memRange is a region between 1 GB and 2 GB below
     //   the end of stack in the lower half; or else it is at an unusual
     //   address for which we hope there is no address conflict.
     //   The latter holds if USE_LH_FIXED_ADDRESS was defined in
@@ -796,8 +798,8 @@ mtcp_plugin_hook(RestoreInfo *rinfo)
     //         But lower-half MPI_Init may call additional mmap's not
     //           controlled by us.
     //         Check this logic.
-    // NOTE:   setLhMemRange (lh_info.memRange: future mmap's of lower half)
-    //           was chosen to be in safe memory region
+    // NOTE:   setLhMemRange (lh_info_addr->memRange: future mmap's of
+    //           lower half was chosen to be in safe memory region
     // NOTE:   When we mmap start1..end1, we will overwrite the text and
     //         data segments of ld.so belonging to mtcp_restart.  But
     //         mtcp_restart is statically linked, and doesn't need it.
@@ -853,7 +855,7 @@ int
 mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
 {
   LhCoreRegions_t *lh_regions_list = NULL;
-  int total_lh_regions = lh_info.numCoreRegions;
+  int total_lh_regions = lh_info_addr->numCoreRegions;
 
   if (regionContains(rinfo->pluginInfo.memRange.start,
                      rinfo->pluginInfo.memRange.end,
@@ -883,7 +885,7 @@ mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
    *                 both for initializeLowerHalf() and for mtcp_plugin_hook,
    *                 when it calls MPI_Init via getRank().
    */
-  getMmappedList_t fnc = (getMmappedList_t)lh_info.getMmappedListFptr;
+  getMmappedList_t fnc = (getMmappedList_t)lh_info_addr->getMmappedListFptr;
   // FIXME: use assert(fnc) instead.
   if (fnc) {
     // This is the mmaps[] array, but only for those regions that are mapped.
@@ -912,7 +914,8 @@ mtcp_plugin_skip_memory_region_munmap(Area *area, RestoreInfo *rinfo)
 
   // FROM: lh_proxy:mpi-proxy-split/lower-half/libproxy.c :
   //   "For a static LH, mark all the regions till heap as core regions."
-  getLhRegionsList_t core_fnc = (getLhRegionsList_t)lh_info.getLhRegionsListFptr;
+  getLhRegionsList_t core_fnc =
+                    (getLhRegionsList_t)lh_info_addr->getLhRegionsListFptr;
   if (core_fnc) {
     lh_regions_list = core_fnc(&total_lh_regions);
   }
