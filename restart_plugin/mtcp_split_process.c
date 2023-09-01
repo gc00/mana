@@ -98,9 +98,12 @@ splitProcess(RestoreInfo *rinfo)
   }
   if (ret == 0) {
     ret = initializeLowerHalf(rinfo);
+    // lh_info has now been updated from the child proxy process.
+    return ret;
+  } else {
+    MTCP_PRINTF("splitProcess:  Failed to read_lh_proxy_bits()\n");
+    return -1;
   }
-  // lh_info has now been updated from the child proxy process.
-  return ret;
 }
 
 // Local functions
